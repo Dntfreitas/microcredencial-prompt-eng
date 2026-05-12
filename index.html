@@ -1,0 +1,868 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Engenharia de Prompts — Análise de Documentos</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #ffffff;
+    --bg2: #f5f5f3;
+    --bg3: #eeece8;
+    --text: #1a1a18;
+    --text2: #5a5a56;
+    --text3: #9a9a94;
+    --border: rgba(0,0,0,0.10);
+    --border2: rgba(0,0,0,0.18);
+    --radius: 10px;
+    --radius-lg: 14px;
+    --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a18;
+      --bg2: #242420;
+      --bg3: #2e2e2a;
+      --text: #e8e6df;
+      --text2: #a8a69f;
+      --text3: #68665f;
+      --border: rgba(255,255,255,0.10);
+      --border2: rgba(255,255,255,0.18);
+    }
+  }
+
+  body {
+    font-family: var(--font);
+    background: var(--bg2);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 0;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 14px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .header-left h1 { font-size: 16px; font-weight: 600; color: var(--text); }
+  .header-left p  { font-size: 12px; color: var(--text3); margin-top: 1px; }
+  .header-badge {
+    background: var(--bg2);
+    border: 0.5px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--text2);
+    white-space: nowrap;
+  }
+
+  /* ── CHAIN BAR ── */
+  .chain-bar {
+    background: var(--bg);
+    border-bottom: 0.5px solid var(--border);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .chain-bar::-webkit-scrollbar { height: 0; }
+  .chain-step {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    flex-shrink: 0;
+  }
+  .chain-btn {
+    padding: 6px 14px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+    background: var(--bg2);
+    color: var(--text2);
+    font-size: 12px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.15s;
+    line-height: 1.4;
+    text-align: center;
+  }
+  .chain-btn:hover { background: var(--bg3); color: var(--text); }
+  .chain-btn.active {
+    border-width: 2px;
+    color: #fff;
+    font-weight: 500;
+  }
+  .chain-btn .sub { font-size: 10px; opacity: 0.75; margin-top: 1px; }
+  .chain-arrow { color: var(--text3); font-size: 14px; padding: 0 6px; }
+
+  /* ── MAIN LAYOUT ── */
+  .main { max-width: 820px; margin: 0 auto; padding: 24px 20px 80px; }
+
+  /* ── PART HEADER ── */
+  .part-header {
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    border: 2px solid transparent;
+  }
+  .part-header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  .part-title { font-size: 18px; font-weight: 600; margin-bottom: 3px; }
+  .part-meta  { font-size: 13px; color: var(--text2); }
+  .part-meta strong { font-weight: 600; }
+
+  /* ── TIMER ── */
+  .timer-area { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+  .timer-display {
+    font-variant-numeric: tabular-nums;
+    font-size: 22px;
+    font-weight: 600;
+    font-family: var(--mono);
+    letter-spacing: 0.02em;
+    min-width: 60px;
+    text-align: right;
+  }
+  .timer-btn {
+    padding: 7px 16px;
+    border-radius: 8px;
+    border: none;
+    color: #fff;
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+    white-space: nowrap;
+  }
+  .timer-btn:hover { opacity: 0.85; }
+  .timer-bar-wrap {
+    margin-top: 12px;
+    height: 4px;
+    background: rgba(0,0,0,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  @media (prefers-color-scheme: dark) {
+    .timer-bar-wrap { background: rgba(255,255,255,0.08); }
+  }
+  .timer-bar { height: 100%; border-radius: 2px; transition: width 0.5s linear; }
+
+  /* ── TABS ── */
+  .tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+  .tab-btn {
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 0.5px solid var(--border);
+    background: var(--bg);
+    color: var(--text2);
+    font-size: 13px;
+    cursor: pointer;
+    font-family: var(--font);
+    transition: all 0.15s;
+  }
+  .tab-btn:hover { background: var(--bg2); color: var(--text); }
+  .tab-btn.active {
+    border-width: 2px;
+    color: #fff;
+    font-weight: 500;
+  }
+
+  /* ── CONTENT CARD ── */
+  .content-card {
+    background: var(--bg);
+    border-radius: var(--radius-lg);
+    border: 0.5px solid var(--border);
+    padding: 20px;
+    min-height: 240px;
+  }
+
+  .task-text {
+    font-size: 15px;
+    line-height: 1.7;
+    color: var(--text);
+    margin-bottom: 16px;
+  }
+  .tip-box {
+    background: var(--bg2);
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--text2);
+    border-left: 3px solid transparent;
+  }
+
+  .theory-line { font-size: 14px; line-height: 1.7; margin-bottom: 6px; }
+  .theory-bullet { padding-left: 16px; color: var(--text2); }
+
+  .solution-gate { text-align: center; padding: 2.5rem 0; }
+  .solution-gate p { color: var(--text2); margin-bottom: 16px; font-size: 14px; }
+  .reveal-btn {
+    padding: 9px 22px;
+    border-radius: 8px;
+    border: none;
+    color: #fff;
+    font-size: 14px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .reveal-btn:hover { opacity: 0.85; }
+  pre.solution-code {
+    font-size: 12px;
+    line-height: 1.8;
+    font-family: var(--mono);
+    color: var(--text);
+    white-space: pre-wrap;
+    background: var(--bg2);
+    padding: 14px 16px;
+    border-radius: var(--radius);
+    border: 0.5px solid var(--border);
+    overflow-x: auto;
+  }
+
+  .comment-item {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 10px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border-radius: var(--radius);
+    align-items: flex-start;
+  }
+  .comment-num { font-weight: 600; font-size: 14px; min-width: 22px; }
+  .comment-text { font-size: 13px; line-height: 1.6; color: var(--text); }
+
+  /* ── NAV ── */
+  .nav-bar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 16px;
+  }
+  .nav-btn {
+    padding: 8px 18px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+    font-weight: 500;
+    transition: opacity 0.15s;
+  }
+  .nav-btn:hover { opacity: 0.85; }
+  .nav-btn.prev {
+    background: var(--bg);
+    border: 0.5px solid var(--border2);
+    color: var(--text);
+  }
+  .nav-btn.next { border: none; color: #fff; }
+  .nav-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .nav-counter { font-size: 13px; color: var(--text2); }
+
+  /* ── CHECKLIST (Parte 5) ── */
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 10px 14px;
+    background: var(--bg2);
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    cursor: pointer;
+    border: 0.5px solid var(--border);
+    transition: background 0.1s;
+  }
+  .checklist-item:hover { background: var(--bg3); }
+  .checklist-item input[type=checkbox] { width: 16px; height: 16px; margin-top: 2px; flex-shrink: 0; cursor: pointer; }
+  .checklist-label { font-size: 13px; line-height: 1.6; }
+  .checklist-label strong { display: block; font-size: 14px; margin-bottom: 2px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 600px) {
+    .header { padding: 12px 16px; }
+    .chain-bar { padding: 10px 16px; }
+    .main { padding: 16px 12px 80px; }
+    .part-header { padding: 14px 16px; }
+    .content-card { padding: 16px; }
+    .part-title { font-size: 16px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="header-left">
+    <h1>Engenharia de Prompts — Análise de Documentos</h1>
+    <p>Faculdade de Ciências Exatas e da Engenharia · Universidade da Madeira</p>
+  </div>
+  <div class="header-badge" id="total-timer">⏱ 00:00 / 30:00</div>
+</header>
+
+<!-- CHAIN BAR -->
+<div class="chain-bar" id="chain-bar"></div>
+
+<!-- MAIN -->
+<main class="main">
+  <!-- Part Header -->
+  <div class="part-header" id="part-header">
+    <div class="part-header-top">
+      <div>
+        <div class="part-title" id="part-title"></div>
+        <div class="part-meta" id="part-meta"></div>
+      </div>
+      <div class="timer-area">
+        <div class="timer-display" id="timer-display">00:00</div>
+        <button class="timer-btn" id="timer-btn" onclick="toggleTimer()">▶ Iniciar</button>
+        <button class="timer-btn" id="reset-btn" onclick="resetTimer()" style="background:#6b6b65; display:none">↺</button>
+      </div>
+    </div>
+    <div class="timer-bar-wrap">
+      <div class="timer-bar" id="timer-bar" style="width:0%"></div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="tabs" id="tabs"></div>
+
+  <!-- Content -->
+  <div class="content-card" id="content-card"></div>
+
+  <!-- Nav -->
+  <div class="nav-bar">
+    <button class="nav-btn prev" onclick="navigate(-1)" id="btn-prev">← Parte anterior</button>
+    <span class="nav-counter" id="nav-counter"></span>
+    <button class="nav-btn next" onclick="navigate(1)" id="btn-next">Parte seguinte →</button>
+  </div>
+</main>
+
+<script>
+const PARTS = [
+  {
+    id: 1,
+    title: "Parte 1 — Dar Direção com AUTOMAT",
+    duration: 5,
+    technique: "AUTOMAT",
+    color: "#1E3A5F",
+    accent: "#ddeaf8",
+    accentDark: "#0d2035",
+    icon: "🎯",
+    theory: [
+      { text: "A metodologia AUTOMAT define os 7 componentes de uma prompt eficaz:", bullet: false },
+      { text: "Act as... — define o papel do modelo (especialização, experiência, contexto)", bullet: true },
+      { text: "User Persona & Audience — quem pergunta e para quem é a resposta", bullet: true },
+      { text: "Targeted Action — a ação concreta que se pretende realizar", bullet: true },
+      { text: "Output Definition — formato, estrutura e extensão do resultado", bullet: true },
+      { text: "Mode/Style — tom, formalidade e estilo de comunicação", bullet: true },
+      { text: "Atypical Cases — como lidar com exceções e casos-limite", bullet: true },
+      { text: "Topic Whitelisting — limitar o âmbito para evitar desvios", bullet: true },
+    ],
+    task: "Construa uma prompt usando a metodologia AUTOMAT que: (1) atribua ao modelo o papel de consultor sénior em mobilidade urbana, (2) defina o público como vereadores sem formação técnica, (3) solicite a extração dos dados-chave de cada relatório, (4) especifique tom formal em português europeu, e (5) indique que dados em falta devem ser marcados como N/D.",
+    tip: "💡 Incluir contexto geográfico ('municípios portugueses') e anos de experiência torna o papel mais credível e altera o nível de detalhe da resposta.",
+    solution: `Act as a CONSULTOR SÉNIOR EM MOBILIDADE URBANA com 15 anos
+de experiência em projetos para municípios portugueses.
+
+Sou um VEREADOR DA CÂMARA MUNICIPAL sem formação técnica
+que precisa compreender três relatórios de consultoria para
+tomar uma decisão em reunião de câmara.
+
+A tua tarefa é ANALISAR OS TRÊS RELATÓRIOS e EXTRAIR os
+dados-chave de cada um:
+- Custo total estimado
+- Prazo de execução
+- Extensão em km
+- Impacto ambiental
+- Risco principal identificado
+
+TOM: Formal, objetivo, conciso. Máximo 3 linhas por campo.
+
+CASO ESPECIAL: Se algum dado não estiver disponível nos
+documentos, escreve exatamente: N/D
+Se encontrares informação contraditória entre relatórios,
+assinala com: [ATENÇÃO: divergência identificada]
+
+Responde APENAS com base nos documentos fornecidos.
+Não acrescentes informação externa nem suposições.
+
+DOCUMENTOS:
+"""
+[COLAR AQUI OS TRÊS RELATÓRIOS]
+"""`,
+    comments: [
+      { num: "1", color: "#1E3A5F", text: "O papel específico ('15 anos + contexto PT') altera o nível de detalhe e a credibilidade da resposta." },
+      { num: "2", color: "#1E3A5F", text: "Definir 'vereador sem formação técnica' como audiência simplifica automaticamente a linguagem do modelo." },
+      { num: "3", color: "#1E3A5F", text: "A instrução N/D é o Atypical Cases do AUTOMAT — evita que o modelo invente dados inexistentes." },
+      { num: "4", color: "#1E3A5F", text: "O Whitelisting ('APENAS com base nos documentos') é fundamental para prevenir alucinações." },
+    ]
+  },
+  {
+    id: 2,
+    title: "Parte 2 — Especificar o Formato",
+    duration: 5,
+    technique: "Formato Explícito",
+    color: "#1a5296",
+    accent: "#dde8f8",
+    accentDark: "#0a2547",
+    icon: "📋",
+    theory: [
+      { text: "Especificar o formato garante que o output é diretamente utilizável — sem necessidade de reformatação.", bullet: false },
+      { text: "Tabelas Markdown: fornecer o cabeçalho já formatado elimina ambiguidade sobre as colunas.", bullet: true },
+      { text: "Campos calculados: delegar ao modelo cálculos simples (ex: custo/km) é uso eficiente.", bullet: true },
+      { text: "Destaques visuais: MAIÚSCULAS, **negrito**, ✓/✗ orientam a atenção para o que importa.", bullet: true },
+      { text: "Notas de rodapé: tornam o critério de avaliação transparente e auditável.", bullet: true },
+      { text: "Referência ao contexto anterior: 'Com base na análise anterior...' mantém o fio condutor do Chaining.", bullet: true },
+    ],
+    task: "Usando o output da Parte 1 como contexto, construa uma prompt que peça uma tabela comparativa com colunas pré-definidas (incluindo custo por km calculado), destaque em MAIÚSCULAS o relatório com melhor custo/km, e adicione uma nota de rodapé com o critério de avaliação utilizado.",
+    tip: "💡 Fornecer o cabeçalho da tabela já formatado em Markdown obriga o modelo a usar exactamente aquela estrutura. Não é preciso descrever — basta mostrar.",
+    solution: `Com base na análise que fizeste dos três relatórios de
+ciclovia, CRIA UMA TABELA COMPARATIVA com exactamente
+estas colunas:
+
+| Critério | Relatório A | Relatório B | Relatório C |
+|----------|-------------|-------------|-------------|
+| Custo (€) | ... | ... | ... |
+| Prazo (meses) | ... | ... | ... |
+| Extensão (km) | ... | ... | ... |
+| Impacto CO2 | ... | ... | ... |
+| Risco Principal | ... | ... | ... |
+| Custo por km (€) | ... | ... | ... |
+
+INSTRUÇÕES ADICIONAIS:
+1. Calcula automaticamente o custo por km para cada relatório.
+2. Usa MAIÚSCULAS E NEGRITO na coluna do relatório com
+   MELHOR relação custo/km.
+3. Adiciona linha final "RECOMENDAÇÃO PRELIMINAR" com ✓ no
+   melhor e ✗ nos restantes, apenas com base em custo/km.
+4. Após a tabela, nota de rodapé:
+   *Critério: custo total ÷ extensão em km.
+   Fatores de risco e impacto ambiental são analisados
+   separadamente.*`,
+    comments: [
+      { num: "1", color: "#1a5296", text: "O cabeçalho em Markdown pré-formatado garante exactamente as colunas pretendidas — sem interpretação livre." },
+      { num: "2", color: "#1a5296", text: "Delegar o cálculo custo/km ao modelo é uso eficiente — liberta o utilizador de aritmética manual." },
+      { num: "3", color: "#1a5296", text: "MAIÚSCULAS na instrução ('MAIÚSCULAS E NEGRITO') reforçam visualmente o que é mais importante em prompts longas." },
+      { num: "4", color: "#1a5296", text: "A nota de rodapé com o critério promove transparência — o leitor sabe exactamente como a recomendação foi gerada." },
+    ]
+  },
+  {
+    id: 3,
+    title: "Parte 3 — Dar Exemplos (Few-Shot)",
+    duration: 7,
+    technique: "Few-Shot Learning",
+    color: "#1a5c35",
+    accent: "#daf0e3",
+    accentDark: "#0a2e1a",
+    icon: "📚",
+    theory: [
+      { text: "Investigação mostra que 1 exemplo pode aumentar a precisão de 10% para ~50% (Brown et al., 2020, 'Language Models are Few-Shot Learners').", bullet: false },
+      { text: "Os exemplos ensinam implicitamente: padrão, tom, nível de detalhe e formato esperado.", bullet: true },
+      { text: "Cobertura de casos: os exemplos devem cobrir o espectro completo (ex: BAIXO/MÉDIO/ALTO).", bullet: true },
+      { text: "Consistência de estrutura: todos os exemplos com os mesmos campos na mesma ordem.", bullet: true },
+      { text: "Zero-shot → One-shot → Few-shot: mais exemplos = mais precisão, especialmente em modelos menores.", bullet: true },
+    ],
+    task: "Construa uma prompt com 3 exemplos de classificação de riscos (BAIXO, MÉDIO, ALTO) que o modelo usará como padrão para classificar os riscos identificados nos três relatórios. Cada exemplo deve ter: Risco / Classificação / Justificação / Mitigação sugerida.",
+    tip: "💡 A consistência é o que o modelo aprende. Se o Exemplo 1 tem 4 campos e o Exemplo 2 tem 3, o modelo fica confuso sobre o que incluir.",
+    solution: `Vais avaliar os riscos dos três relatórios de ciclovia.
+Segue EXACTAMENTE o padrão dos exemplos abaixo.
+
+─────────────── EXEMPLOS ───────────────
+
+Exemplo 1:
+Risco: "Sinalização adicional junto a cruzamentos"
+→ Classificação: BAIXO
+→ Justificação: Intervenção pontual, custo < 50.000 €,
+  sem impacto no cronograma geral.
+→ Mitigação: Incluir no orçamento de contingência (3-5%).
+
+Exemplo 2:
+Risco: "Interferência com rede de águas pluviais existente"
+→ Classificação: MÉDIO
+→ Justificação: Requer levantamento topográfico extra
+  (2-3 semanas) e coordenação com entidade gestora.
+→ Mitigação: Iniciar levantamento na fase de projecto.
+
+Exemplo 3:
+Risco: "Expropriação de 5 propriedades privadas"
+→ Classificação: ALTO
+→ Justificação: Processos legais demoram 12-24 meses,
+  custo imprevisível, pode inviabilizar o projecto.
+→ Mitigação: Analisar alternativas de traçado antes
+  de avançar.
+
+─────────────── TAREFA ───────────────
+
+Aplica este formato aos riscos dos Relatórios A, B e C.
+Mantém exactamente: Risco / Classificação / Justificação
+/ Mitigação.
+Apenas classifica riscos presentes nos documentos.`,
+    comments: [
+      { num: "1", color: "#1a5c35", text: "3 exemplos cobrem os 3 níveis possíveis — o modelo não precisa inferir a escala por si." },
+      { num: "2", color: "#1a5c35", text: "Cada exemplo tem 4 campos na mesma ordem — o modelo aprende o padrão de forma implícita e consistente." },
+      { num: "3", color: "#1a5c35", text: "'Mantém exactamente a estrutura' reduz desvios de formato no output — especialmente útil em modelos menores." },
+      { num: "4", color: "#1a5c35", text: "A limitação final ('só riscos presentes nos documentos') é o Whitelisting aplicado ao Few-Shot — evita riscos inventados." },
+    ]
+  },
+  {
+    id: 4,
+    title: "Parte 4 — Avaliar Qualidade (Auto-Avaliação)",
+    duration: 7,
+    technique: "Self-Critique / Auto-Avaliação",
+    color: "#7a1a2a",
+    accent: "#f8dde3",
+    accentDark: "#3d0d15",
+    icon: "🔍",
+    theory: [
+      { text: "A auto-avaliação usa um modelo para criticar o output de outro modelo — ou o seu próprio output de uma iteração anterior.", bullet: false },
+      { text: "Detecta lacunas, imprecisões e omissões sem intervenção humana em cada ciclo.", bullet: true },
+      { text: "Pode-se também combinar outputs de múltiplos modelos num 'ensemble' para resposta mais robusta.", bullet: true },
+      { text: "Pedir N críticas específicas evita respostas vagas ('há alguns problemas') e listas excessivas.", bullet: true },
+      { text: "O formato estruturado [CRÍTICA] → [MELHORIA] cria mapeamento claro entre problema e solução.", bullet: true },
+    ],
+    task: "Construa uma prompt de auto-avaliação que: (1) receba o output da Parte 3 como contexto, (2) peça ao modelo para identificar exactamente 2 pontos fracos, (3) proponha uma versão melhorada para cada crítica, e (4) produza uma versão final corrigida. Use o formato [CRÍTICA] → [MELHORIA PROPOSTA].",
+    tip: "💡 Pedir EXACTAMENTE 2 críticas força precisão. N=2 é o sweet spot — evita vagas 'há problemas' e listas de 10 items menores.",
+    solution: `Segue-se a análise de riscos produzida anteriormente:
+
+"""
+[COLAR AQUI O OUTPUT DA PARTE 3]
+"""
+
+Age agora como um REVISOR CRÍTICO INDEPENDENTE.
+A tua tarefa é avaliar a qualidade desta análise.
+
+PASSO 1 — CRÍTICA:
+Identifica EXACTAMENTE 2 pontos fracos na análise.
+Usa o formato:
+[CRÍTICA 1]: [Descrição do problema identificado]
+[CRÍTICA 2]: [Descrição do problema identificado]
+
+PASSO 2 — MELHORIA:
+Para cada crítica, apresenta a versão melhorada:
+[MELHORIA 1]: [Texto revisto e melhorado]
+[MELHORIA 2]: [Texto revisto e melhorado]
+
+PASSO 3 — VERSÃO FINAL:
+Apresenta a análise de riscos completa e corrigida,
+incorporando as melhorias dos passos anteriores.
+
+NOTA: Se a análise original for de boa qualidade,
+diz-o claramente antes de identificar melhorias menores.`,
+    comments: [
+      { num: "1", color: "#7a1a2a", text: "EXACTAMENTE 2 críticas força precisão — evita vagas 'há alguns problemas' ou listas de 10 items insignificantes." },
+      { num: "2", color: "#7a1a2a", text: "O processo em 3 passos (Crítica → Melhoria → Final) cria um workflow verificável e transparente." },
+      { num: "3", color: "#7a1a2a", text: "A instrução de honestidade final reduz o risco de o modelo fabricar críticas para parecer mais útil do que é." },
+      { num: "4", color: "#7a1a2a", text: "Passar o output anterior entre aspas triplas '\"\"\"' separa claramente contexto de instrução — boa prática." },
+    ]
+  },
+  {
+    id: 5,
+    title: "Parte 5 — Dividir Tarefas e Síntese Final",
+    duration: 6,
+    technique: "Prompt Chaining + Síntese",
+    color: "#4a1f7a",
+    accent: "#ece3f8",
+    accentDark: "#25103d",
+    icon: "🔗",
+    theory: [
+      { text: "Prompt Chaining: cada prompt usa o output da anterior como input, acumulando contexto e qualidade.", bullet: false },
+      { text: "Permite dividir tarefas complexas em passos gerenciáveis — cada prompt faz uma coisa bem.", bullet: true },
+      { text: "A síntese final agrega todos os outputs — é o produto útil do exercício.", bullet: true },
+      { text: "Referenciar explicitamente cada OUTPUT anterior é o mecanismo central do Chaining.", bullet: true },
+      { text: "Estrutura obrigatória (##) + limite de palavras force síntese e tom executivo.", bullet: true },
+      { text: "A secção LIMITAÇÕES é boa prática de IA responsável — o modelo honesto é mais credível.", bullet: true },
+    ],
+    task: "Construa a prompt final de síntese que: (1) referencia explicitamente os 4 outputs anteriores, (2) pede recomendação com pelo menos 2 dados numéricos, (3) solicita Resumo Executivo com 5 bullets iniciados em verbos de ação, (4) inclui secção de Limitações da Análise, e (5) limita a extensão a 400 palavras.",
+    tip: "💡 A secção 'LIMITAÇÕES DA ANÁLISE' transforma o relatório de 'output de IA' para 'análise credível' — mostra que o sistema reconhece as suas próprias fronteiras.",
+    solution: `Tens os seguintes outputs de uma análise em cadeia:
+
+OUTPUT 1 (Dados Extraídos — Parte 1): [COLAR AQUI]
+OUTPUT 2 (Tabela Comparativa — Parte 2): [COLAR AQUI]
+OUTPUT 3 (Análise de Riscos — Parte 3): [COLAR AQUI]
+OUTPUT 4 (Análise Melhorada — Parte 4): [COLAR AQUI]
+
+Produz um RELATÓRIO EXECUTIVO FINAL com esta estrutura:
+
+## RECOMENDAÇÃO FINAL
+2-3 frases. OBRIGATÓRIO: citar ≥2 dados numéricos
+concretos que suportam a recomendação.
+
+## RESUMO EXECUTIVO
+Máximo 5 bullet points. Máximo 2 linhas cada.
+Cada bullet DEVE começar com verbo de ação
+(ex: "Adotar...", "Negociar...", "Verificar...").
+
+## RISCOS A MONITORIZAR
+Os 3 riscos mais críticos, do mais ao menos grave,
+com a mitigação sugerida para cada um.
+
+## LIMITAÇÕES DA ANÁLISE
+2-3 limitações do processo de análise realizado
+(ex: dados insuficientes, critérios não considerados).
+
+Tom: Formal, conciso, orientado para a decisão.
+Evita jargão técnico. Extensão total: máximo 400 palavras.`,
+    comments: [
+      { num: "1", color: "#4a1f7a", text: "Referenciar OUTPUT 1-4 explicitamente é o mecanismo do Chaining — o modelo tem contexto acumulado de todo o processo." },
+      { num: "2", color: "#4a1f7a", text: "Verbos de ação nos bullets ('Adotar...', 'Negociar...') orientam para a decisão — adequado para relatórios executivos." },
+      { num: "3", color: "#4a1f7a", text: "Limite de 400 palavras força síntese real — evita outputs longos que ninguém lê em ambiente de decisão." },
+      { num: "4", color: "#4a1f7a", text: "'LIMITAÇÕES' é IA responsável — um modelo que reconhece o que não sabe é mais credível do que um que afirma tudo com certeza." },
+    ],
+    checklist: [
+      { label: "Dar Direção", desc: "Papel definido, audiência clara, âmbito limitado (Whitelisting)" },
+      { label: "Especificar Formato", desc: "Estrutura explícita, colunas/campos definidos, extensão indicada" },
+      { label: "Dar Exemplos", desc: "≥3 exemplos com padrão consistente, cobrindo casos distintos" },
+      { label: "Avaliar Qualidade", desc: "Prompt de crítica presente, formato crítica→melhoria usado" },
+      { label: "Dividir Tarefas", desc: "Outputs anteriores referenciados, síntese final coesa" },
+    ]
+  }
+];
+
+// ── STATE ──
+let currentPart = 0;
+let currentTab = "task";
+let solutionShown = false;
+let timerRunning = false;
+let timerInterval = null;
+let elapsed = 0;
+let totalElapsed = 0;
+let totalInterval = null;
+let checkedItems = {};
+
+// ── TOTAL TIMER ──
+totalInterval = setInterval(() => {
+  totalElapsed++;
+  const m = String(Math.floor(totalElapsed / 60)).padStart(2,'0');
+  const s = String(totalElapsed % 60).padStart(2,'0');
+  document.getElementById('total-timer').textContent = `⏱ ${m}:${s} / 30:00`;
+}, 1000);
+
+// ── RENDER ──
+function render() {
+  const p = PARTS[currentPart];
+  const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const accentColor = isDark ? p.accentDark : p.accent;
+
+  // Chain bar
+  const cb = document.getElementById('chain-bar');
+  cb.innerHTML = PARTS.map((part, i) => `
+    <div class="chain-step">
+      <button class="chain-btn ${i === currentPart ? 'active' : ''}"
+        style="${i === currentPart ? `background:${part.color}; border-color:${part.color}` : ''}"
+        onclick="goTo(${i})">
+        <div>${part.icon} P${part.id}</div>
+        <div class="sub">${part.technique}</div>
+      </button>
+      ${i < PARTS.length - 1 ? '<span class="chain-arrow">→</span>' : ''}
+    </div>
+  `).join('');
+
+  // Part header
+  const ph = document.getElementById('part-header');
+  ph.style.background = accentColor;
+  ph.style.borderColor = p.color + '40';
+
+  document.getElementById('part-title').textContent = `${p.icon} ${p.title}`;
+  document.getElementById('part-title').style.color = p.color;
+  document.getElementById('part-meta').innerHTML = `Técnica: <strong>${p.technique}</strong> · Duração: <strong>${p.duration} min</strong>`;
+
+  document.getElementById('timer-btn').style.background = p.color;
+  document.getElementById('timer-bar').style.background = p.color;
+  document.getElementById('reset-btn').style.display = elapsed > 0 ? 'inline-block' : 'none';
+
+  // Tabs
+  const tabs = document.getElementById('tabs');
+  const tabList = [
+    ['task', '📋 Tarefa'],
+    ['theory', '📖 Conceito'],
+    ['solution', '✅ Resolução'],
+    ['comments', '💬 Comentários'],
+    ...(p.checklist ? [['checklist', '☑️ Checklist']] : [])
+  ];
+  tabs.innerHTML = tabList.map(([k, label]) => `
+    <button class="tab-btn ${currentTab === k ? 'active' : ''}"
+      style="${currentTab === k ? `background:${p.color}; border-color:${p.color}` : ''}"
+      onclick="setTab('${k}')">
+      ${label}
+    </button>
+  `).join('');
+
+  // Content
+  renderContent(p);
+
+  // Nav
+  document.getElementById('btn-prev').disabled = currentPart === 0;
+  document.getElementById('btn-next').disabled = currentPart === PARTS.length - 1;
+  document.getElementById('btn-next').style.background = currentPart === PARTS.length - 1 ? '#aaa' : p.color;
+  document.getElementById('nav-counter').textContent = `${currentPart + 1} / ${PARTS.length}`;
+}
+
+function renderContent(p) {
+  const card = document.getElementById('content-card');
+
+  if (currentTab === 'task') {
+    card.innerHTML = `
+      <p class="task-text">${p.task}</p>
+      <div class="tip-box" style="border-left-color:${p.color}">${p.tip}</div>
+    `;
+  }
+  else if (currentTab === 'theory') {
+    card.innerHTML = p.theory.map(line => `
+      <p class="theory-line ${line.bullet ? 'theory-bullet' : ''}">${line.bullet ? '• ' : ''}${line.text}</p>
+    `).join('');
+  }
+  else if (currentTab === 'solution') {
+    if (!solutionShown) {
+      card.innerHTML = `
+        <div class="solution-gate">
+          <p>Tenta primeiro construir a tua própria prompt antes de ver a solução exemplar.</p>
+          <button class="reveal-btn" style="background:${p.color}" onclick="revealSolution()">
+            Ver resolução exemplar
+          </button>
+        </div>
+      `;
+    } else {
+      card.innerHTML = `<pre class="solution-code">${escHtml(p.solution)}</pre>`;
+    }
+  }
+  else if (currentTab === 'comments') {
+    card.innerHTML = `
+      <p style="font-size:13px;color:var(--text2);margin-bottom:12px">Pontos pedagógicos desta técnica:</p>
+      ${p.comments.map(c => `
+        <div class="comment-item">
+          <span class="comment-num" style="color:${c.color}">${c.num}.</span>
+          <span class="comment-text">${c.text}</span>
+        </div>
+      `).join('')}
+    `;
+  }
+  else if (currentTab === 'checklist' && p.checklist) {
+    card.innerHTML = `
+      <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+        Verifica se a tua cadeia de prompts cobre todas as técnicas:
+      </p>
+      ${p.checklist.map((item, i) => `
+        <label class="checklist-item" onclick="toggleCheck(${i})">
+          <input type="checkbox" id="check-${i}" ${checkedItems[currentPart + '-' + i] ? 'checked' : ''} onclick="toggleCheck(${i}); event.stopPropagation()">
+          <div class="checklist-label">
+            <strong style="color:${p.color}">${item.label}</strong>
+            ${item.desc}
+          </div>
+        </label>
+      `).join('')}
+      <p style="font-size:12px;color:var(--text3);margin-top:12px;text-align:right">
+        ${Object.keys(checkedItems).filter(k => k.startsWith(currentPart+'-') && checkedItems[k]).length} / ${p.checklist.length} técnicas verificadas
+      </p>
+    `;
+  }
+}
+
+function escHtml(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── INTERACTIONS ──
+function setTab(tab) {
+  currentTab = tab;
+  if (tab === 'solution') solutionShown = false;
+  render();
+}
+
+function revealSolution() {
+  solutionShown = true;
+  renderContent(PARTS[currentPart]);
+}
+
+function toggleCheck(i) {
+  const key = currentPart + '-' + i;
+  checkedItems[key] = !checkedItems[key];
+  renderContent(PARTS[currentPart]);
+}
+
+function goTo(idx) {
+  stopTimer();
+  currentPart = idx;
+  currentTab = 'task';
+  solutionShown = false;
+  elapsed = 0;
+  updateTimerDisplay();
+  render();
+}
+
+function navigate(dir) {
+  const next = currentPart + dir;
+  if (next >= 0 && next < PARTS.length) goTo(next);
+}
+
+// ── TIMER ──
+function toggleTimer() {
+  if (timerRunning) {
+    stopTimer();
+  } else {
+    startTimer();
+  }
+}
+
+function startTimer() {
+  timerRunning = true;
+  document.getElementById('timer-btn').textContent = '⏸ Pausar';
+  document.getElementById('reset-btn').style.display = 'inline-block';
+  timerInterval = setInterval(() => {
+    elapsed++;
+    updateTimerDisplay();
+  }, 1000);
+}
+
+function stopTimer() {
+  timerRunning = false;
+  clearInterval(timerInterval);
+  timerInterval = null;
+  document.getElementById('timer-btn').textContent = '▶ Iniciar';
+}
+
+function resetTimer() {
+  stopTimer();
+  elapsed = 0;
+  updateTimerDisplay();
+  document.getElementById('reset-btn').style.display = 'none';
+}
+
+function updateTimerDisplay() {
+  const p = PARTS[currentPart];
+  const max = p.duration * 60;
+  const over = elapsed > max;
+  const m = String(Math.floor(elapsed / 60)).padStart(2,'0');
+  const s = String(elapsed % 60).padStart(2,'0');
+  const disp = document.getElementById('timer-display');
+  disp.textContent = `${m}:${s}`;
+  disp.style.color = over ? '#c0392b' : p.color;
+  const pct = Math.min((elapsed / max) * 100, 100);
+  document.getElementById('timer-bar').style.width = pct + '%';
+  document.getElementById('timer-bar').style.background = over ? '#c0392b' : p.color;
+}
+
+// ── INIT ──
+render();
+
+// Dark mode listener
+window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => render());
+</script>
+</body>
+</html>
